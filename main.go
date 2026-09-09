@@ -21,7 +21,7 @@ func main() {
 	}
 }
 
-func getLinesChannel(f io.ReadCloser) <-chan string {
+func getLinesChannel(r io.Reader) <-chan string {
 	lines := make(chan string)
 
 	go func() {
@@ -30,7 +30,7 @@ func getLinesChannel(f io.ReadCloser) <-chan string {
 		bytes := make([]byte, 8)
 		var currentLine strings.Builder
 		for {
-			n, err := f.Read(bytes)
+			n, err := r.Read(bytes)
 			if err != nil {
 				if currentLine.Len() != 0 {
 					lines <- currentLine.String()
