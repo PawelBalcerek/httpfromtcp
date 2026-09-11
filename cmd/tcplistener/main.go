@@ -1,12 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
-	"strings"
+
+	"github.com/PawelBalcerek/httpfromtcp/internal/request"
 )
 
 func main() {
@@ -23,44 +22,19 @@ func main() {
 		}
 		fmt.Println("a connection has been accepted")
 
-		for line := range getLinesChannel(conn) {
-			fmt.Println(line)
+		request, err := request.RequestFromReader(conn)
+		if err != nil {
+			log.Fatalf("%v", err)
 		}
+
+		requestLine := request.RequestLine
+		fmt.Printf(
+			"Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n",
+			requestLine.Method,
+			requestLine.RequestTarget,
+			requestLine.HttpVersion,
+		)
+
 		fmt.Println("the connection has been closed")
 	}
-}
-
-func getLinesChannel(rc io.ReadCloser) <-chan string {
-	lines := make(chan string)
-
-	go func() {
-		defer close(lines)
-		defer rc.Close()
-
-		bytes := make([]byte, 8)
-		var currentLine strings.Builder
-		for {
-			n, err := rc.Read(bytes)
-			if err != nil {
-				if currentLine.Len() != 0 {
-					lines <- currentLine.String()
-				}
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				fmt.Printf("an error has occurred: %s\n", err.Error())
-				return
-			}
-
-			str := string(bytes[:n])
-			parts := strings.Split(str, "\n")
-			for i := 0; i < len(parts)-1; i++ {
-				lines <- fmt.Sprintf("%s%s", currentLine.String(), parts[i])
-				currentLine.Reset()
-			}
-			currentLine.WriteString(parts[len(parts)-1])
-		}
-	}()
-
-	return lines
 }
