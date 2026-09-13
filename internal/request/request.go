@@ -7,10 +7,13 @@ import (
 	"io"
 	"strings"
 	"unicode"
+
+	"github.com/PawelBalcerek/httpfromtcp/internal/headers"
 )
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 
 	requestState requestState
 }
@@ -25,11 +28,14 @@ type requestState int
 
 const (
 	requestStateInitialized requestState = iota
+	requestStateParsingHeaders
 	requestStateDone
 )
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	request := &Request{
+		Headers: headers.NewHeaders(),
+
 		requestState: requestStateInitialized,
 	}
 	var toParse []byte
@@ -66,9 +72,19 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 
 		if requestLine != nil {
-			r.requestState = requestStateDone
+			r.requestState = requestStateParsingHeaders
 			r.RequestLine = *requestLine
-			return parsedBytes, nil
+		}
+
+		return parsedBytes, nil
+	case requestStateParsingHeaders:
+		parsedBytes, done, err := r.Headers.ParseSingleHeader(data)
+		if err != nil {
+			return 0, err
+		}
+
+		if done {
+			r.requestState = requestStateDone
 		}
 
 		return parsedBytes, nil
