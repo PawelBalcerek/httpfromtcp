@@ -35,6 +35,12 @@ func main() {
 			requestLine.HttpVersion,
 		)
 
+		headers := request.Headers
+		fmt.Println("Headers:")
+		for k, v := range headers {
+			fmt.Printf("- %s: %s\n", k, v)
+		}
+
 		fmt.Println("the connection has been closed")
 	}
 }
