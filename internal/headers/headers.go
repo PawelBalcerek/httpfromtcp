@@ -3,8 +3,11 @@ package headers
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var fieldNameRegex = regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.^_` + "`" + `|~]+$`)
 
 type Headers map[string]string
 
@@ -28,8 +31,8 @@ func (h Headers) ParseSingleHeader(data []byte) (n int, done bool, err error) {
 	}
 
 	name := headerParts[0]
-	if strings.ContainsAny(name, " \t") {
-		return 0, false, fmt.Errorf("invalid header name: %s (contains whitespace characters)", name)
+	if !fieldNameRegex.MatchString(name) {
+		return 0, false, fmt.Errorf("non-compliant header field-name: %s", name)
 	}
 
 	value := strings.TrimSpace(headerParts[1])
@@ -39,5 +42,5 @@ func (h Headers) ParseSingleHeader(data []byte) (n int, done bool, err error) {
 }
 
 func (h Headers) SetHeader(name, value string) {
-	h[name] = value
+	h[strings.ToLower(name)] = value
 }

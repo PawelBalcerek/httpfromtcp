@@ -15,7 +15,7 @@ func TestHeadersParse(t *testing.T) {
 	n, done, err := h.ParseSingleHeader(data)
 	require.NoError(t, err)
 	require.NotNil(t, h)
-	assert.Equal(t, "localhost:42069", h["Host"])
+	assert.Equal(t, "localhost:42069", h["host"])
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -25,7 +25,7 @@ func TestHeadersParse(t *testing.T) {
 	n, done, err = h.ParseSingleHeader(data)
 	require.NoError(t, err)
 	require.NotNil(t, h)
-	assert.Equal(t, "localhost:42069", h["Host"])
+	assert.Equal(t, "localhost:42069", h["host"])
 	assert.Equal(t, 27, n)
 	assert.False(t, done)
 
@@ -34,8 +34,8 @@ func TestHeadersParse(t *testing.T) {
 	n, done, err = h.ParseSingleHeader(data)
 	require.NoError(t, err)
 	require.NotNil(t, h)
-	assert.Equal(t, "localhost:42069", h["Host"])
-	assert.Equal(t, "Bearer token", h["Authorization"])
+	assert.Equal(t, "localhost:42069", h["host"])
+	assert.Equal(t, "Bearer token", h["authorization"])
 	assert.Equal(t, 29, n)
 	assert.False(t, done)
 
@@ -51,6 +51,14 @@ func TestHeadersParse(t *testing.T) {
 	// Test: Invalid spacing header
 	h = headers.NewHeaders()
 	data = []byte(" Host : localhost:42069\r\n\r\n")
+	n, done, err = h.ParseSingleHeader(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
+	// Test: Non-compliant header field-name
+	h = headers.NewHeaders()
+	data = []byte("H©st: localhost:42069\r\n\r\n")
 	n, done, err = h.ParseSingleHeader(data)
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
