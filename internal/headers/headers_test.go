@@ -48,6 +48,23 @@ func TestHeadersParse(t *testing.T) {
 	assert.Equal(t, 2, n)
 	assert.True(t, done)
 
+	// Test: Duplicated header
+	h = headers.NewHeaders()
+	data = []byte("X-Custom-Header: value1\r\n\r\n")
+	n, done, err = h.ParseSingleHeader(data)
+	require.NoError(t, err)
+	require.NotNil(t, h)
+	assert.Equal(t, "value1", h["x-custom-header"])
+	assert.Equal(t, 25, n)
+	assert.False(t, done)
+	data = []byte("X-Custom-Header: value2\r\n\r\n")
+	n, done, err = h.ParseSingleHeader(data)
+	require.NoError(t, err)
+	require.NotNil(t, h)
+	assert.Equal(t, "value1, value2", h["x-custom-header"])
+	assert.Equal(t, 25, n)
+	assert.False(t, done)
+
 	// Test: Invalid spacing header
 	h = headers.NewHeaders()
 	data = []byte(" Host : localhost:42069\r\n\r\n")

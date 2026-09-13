@@ -42,5 +42,10 @@ func (h Headers) ParseSingleHeader(data []byte) (n int, done bool, err error) {
 }
 
 func (h Headers) SetHeader(name, value string) {
-	h[strings.ToLower(name)] = value
+	lName := strings.ToLower(name)
+	if v, ok := h[lName]; ok {
+		h[lName] = fmt.Sprintf("%s, %s", v, value)
+	} else {
+		h[lName] = value
+	}
 }
