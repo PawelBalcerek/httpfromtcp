@@ -14,6 +14,7 @@ import (
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 
 	requestState requestState
 }
@@ -29,6 +30,7 @@ type requestState int
 const (
 	requestStateInitialized requestState = iota
 	requestStateParsingHeaders
+	requestStateParsingBody
 	requestStateDone
 )
 
@@ -44,6 +46,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		readBytes, err := reader.Read(bytes)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				if request.requestState == requestStateParsingBody {
+					return nil, fmt.Errorf("expected longer body: %w", err)
+				}
 				request.requestState = requestStateDone
 				break
 			}
@@ -84,10 +89,31 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 
 		if done {
-			r.requestState = requestStateDone
+			if v, ok, _ := r.Headers.ContentLength(); !ok || v == 0 {
+				r.requestState = requestStateDone
+			} else {
+				r.requestState = requestStateParsingBody
+			}
 		}
 
 		return parsedBytes, nil
+	case requestStateParsingBody:
+		v, _, err := r.Headers.ContentLength()
+		if err != nil {
+			return 0, fmt.Errorf("failed to read %s header: %w", headers.ContentLength, err)
+		}
+
+		r.Body = append(r.Body, data...)
+
+		if v < len(r.Body) {
+			return 0, fmt.Errorf("body is larger than reported %s: %d", headers.ContentLength, v)
+		}
+
+		if len(r.Body) == v {
+			r.requestState = requestStateDone
+		}
+
+		return len(data), nil
 	case requestStateDone:
 		return 0, errors.New("request already in done state")
 	default:

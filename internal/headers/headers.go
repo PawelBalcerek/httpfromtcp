@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 var fieldNameRegex = regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.^_` + "`" + `|~]+$`)
+
+const ContentLength = "Content-Length"
 
 type Headers map[string]string
 
@@ -48,4 +51,22 @@ func (h Headers) SetHeader(name, value string) {
 	} else {
 		h[lName] = value
 	}
+}
+
+func (h Headers) ContentLength() (value int, ok bool, err error) {
+	if v, ok := h.GetHeader(ContentLength); ok {
+		value, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, false, fmt.Errorf("failed to convert %s header: %w", ContentLength, err)
+		}
+		return value, true, nil
+	} else {
+		return 0, false, nil
+	}
+}
+
+func (h Headers) GetHeader(name string) (value string, ok bool) {
+	lName := strings.ToLower(name)
+	value, ok = h[lName]
+	return value, ok
 }
