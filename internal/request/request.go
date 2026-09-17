@@ -89,7 +89,7 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 
 		if done {
-			if v, ok, _ := r.Headers.ContentLength(); !ok || v == 0 {
+			if v, ok, _ := r.Headers.GetContentLength(); !ok || v == 0 {
 				r.requestState = requestStateDone
 			} else {
 				r.requestState = requestStateParsingBody
@@ -98,7 +98,7 @@ func (r *Request) parse(data []byte) (int, error) {
 
 		return parsedBytes, nil
 	case requestStateParsingBody:
-		v, _, err := r.Headers.ContentLength()
+		v, _, err := r.Headers.GetContentLength()
 		if err != nil {
 			return 0, fmt.Errorf("failed to read %s header: %w", headers.ContentLength, err)
 		}

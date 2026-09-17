@@ -10,7 +10,11 @@ import (
 
 var fieldNameRegex = regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.^_` + "`" + `|~]+$`)
 
-const ContentLength = "Content-Length"
+const (
+	ContentLength = "Content-Length"
+	Connection    = "Connection"
+	ContentType   = "Content-Type"
+)
 
 type Headers map[string]string
 
@@ -44,6 +48,18 @@ func (h Headers) ParseSingleHeader(data []byte) (n int, done bool, err error) {
 	return idx + 2, false, nil
 }
 
+func (h Headers) SetContentLength(cl int) {
+	h.SetHeader(ContentLength, strconv.Itoa(cl))
+}
+
+func (h Headers) SetConnection(v string) {
+	h.SetHeader(Connection, v)
+}
+
+func (h Headers) SetContentType(v string) {
+	h.SetHeader(ContentType, v)
+}
+
 func (h Headers) SetHeader(name, value string) {
 	lName := strings.ToLower(name)
 	if v, ok := h[lName]; ok {
@@ -53,7 +69,7 @@ func (h Headers) SetHeader(name, value string) {
 	}
 }
 
-func (h Headers) ContentLength() (value int, ok bool, err error) {
+func (h Headers) GetContentLength() (value int, ok bool, err error) {
 	if v, ok := h.GetHeader(ContentLength); ok {
 		value, err := strconv.Atoi(v)
 		if err != nil {
