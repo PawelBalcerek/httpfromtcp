@@ -56,12 +56,17 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 
 		toParse = append(toParse, bytes[:readBytes]...)
-		parsedBytes, err := request.parse(toParse)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse bytes: %w", err)
-		}
 
-		if parsedBytes != 0 {
+		for request.requestState != requestStateDone {
+			parsedBytes, err := request.parse(toParse)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse bytes: %w", err)
+			}
+
+			if parsedBytes == 0 {
+				break
+			}
+
 			toParse = toParse[parsedBytes:]
 		}
 	}
