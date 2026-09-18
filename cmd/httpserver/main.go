@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"github.com/PawelBalcerek/httpfromtcp/internal/headers"
 	"github.com/PawelBalcerek/httpfromtcp/internal/request"
 	"github.com/PawelBalcerek/httpfromtcp/internal/response"
 	"github.com/PawelBalcerek/httpfromtcp/internal/server"
@@ -29,26 +29,60 @@ func main() {
 	log.Println("Server gracefully stopped")
 }
 
-func handleRequest(w io.Writer, req *request.Request) *server.HandlerError {
+const (
+	YOUR_PROBLEM_PAYLOAD = `
+	<html>
+  		<head>
+    		<title>400 Bad Request</title>
+  		</head>
+  		<body>
+    		<h1>Bad Request</h1>
+    		<p>Your request honestly kinda sucked.</p>
+  		</body>
+	</html>
+	`
+	MY_PROBLEM_PAYLOAD = `
+	<html>
+	  	<head>
+	    	<title>500 Internal Server Error</title>
+		</head>
+		<body>
+	    	<h1>Internal Server Error</h1>
+	    	<p>Okay, you know what? This one is on me.</p>
+	  	</body>
+	</html>
+	`
+	OK_PAYLOAD = `
+	<html>
+		<head>
+	    	<title>200 OK</title>
+	  	</head>
+	  	<body>
+	    	<h1>Success!</h1>
+	    	<p>Your request was an absolute banger.</p>
+	  	</body>
+	</html>
+	`
+)
+
+func handleRequest(w *response.Writer, req *request.Request) {
+	var p string
 	switch req.RequestLine.RequestTarget {
 	case "/yourproblem":
-		return &server.HandlerError{
-			StatusCode: response.BadRequest,
-			Message:    "Your problem is not my problem\n",
-		}
+		w.WriteStatusLine(response.BadRequest)
+		p = YOUR_PROBLEM_PAYLOAD
 	case "/myproblem":
-		return &server.HandlerError{
-			StatusCode: response.InternalServerError,
-			Message:    "Woopsie, my bad\n",
-		}
+		w.WriteStatusLine(response.InternalServerError)
+		p = MY_PROBLEM_PAYLOAD
 	default:
-		if _, err := fmt.Fprint(w, "All good, frfr\n"); err != nil {
-			fmt.Printf("an error has occurred while writing response: %v", err)
-			return &server.HandlerError{
-				StatusCode: response.InternalServerError,
-				Message:    "Woopsie, my bad\n",
-			}
-		}
-		return nil
+		w.WriteStatusLine(response.Ok)
+		p = OK_PAYLOAD
 	}
+	h := headers.NewHeaders()
+	h.SetConnection("close")
+	h.SetContentType("text/html")
+	p = strings.TrimSpace(p)
+	h.SetContentLength(len(p))
+	w.WriteHeaders(h)
+	w.WriteBody(p)
 }

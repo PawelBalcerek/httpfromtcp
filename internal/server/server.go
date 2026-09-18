@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -11,6 +10,8 @@ import (
 	"github.com/PawelBalcerek/httpfromtcp/internal/request"
 	"github.com/PawelBalcerek/httpfromtcp/internal/response"
 )
+
+type Handler func(w *response.Writer, req *request.Request)
 
 type Server struct {
 	listener net.Listener
@@ -67,22 +68,5 @@ func (s *Server) handle(conn net.Conn) {
 		log.Printf("an error has occurred while reading request: %v", err)
 	}
 
-	buffer := bytes.NewBuffer(make([]byte, 0))
-	if hErr := s.handler(buffer, request); hErr != nil {
-		hErr.WriteError(conn)
-		return
-	}
-
-	if err := response.WriteStatusLine(conn, response.Ok); err != nil {
-		log.Printf("an error has occurred while writing status line: %v", err)
-	}
-
-	h := response.GetDefaultHeaders(buffer.Len())
-	if err := response.WriteHeaders(conn, h); err != nil {
-		log.Printf("an error has occurred while writing default headers: %v", err)
-	}
-
-	if _, err := conn.Write(buffer.Bytes()); err != nil {
-		log.Printf("an error has ocurred while writing bytes: %v", err)
-	}
+	s.handler(response.NewWriter(conn), request)
 }
