@@ -9,8 +9,8 @@ import (
 )
 
 type Writer struct {
-	writer      io.Writer
 	writerState writerState
+	writer      io.Writer
 }
 
 type writerState int
@@ -72,12 +72,45 @@ func (w *Writer) WriteHeaders(h headers.Headers) error {
 }
 
 func (w *Writer) WriteBody(p string) (int, error) {
+	n, err := w.writeBody([]byte(p))
+	if err != nil {
+		return 0, err
+	}
+	w.writerState = doneWriterState
+	return n, nil
+}
+
+func (w *Writer) writeBody(p []byte) (int, error) {
 	if w.writerState != bodyWriterState {
 		return 0, errors.New("invalid writer state: not body")
 	}
-	n, err := w.writer.Write([]byte(p))
+	n, err := w.writer.Write(p)
 	if err != nil {
 		return 0, fmt.Errorf("failed to write payload: %w", err)
+	}
+	return n, nil
+}
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	chunkSizeN, err := w.writeBody(fmt.Appendf(nil, "%x\r\n", len(p)))
+	if err != nil {
+		return 0, fmt.Errorf("failed to write chunk size: %w", err)
+	}
+	payloadN, err := w.writeBody(p)
+	if err != nil {
+		return 0, fmt.Errorf("failed to write chunk: %w", err)
+	}
+	payloadCloseN, err := w.writeBody([]byte("\r\n"))
+	if err != nil {
+		return 0, fmt.Errorf("failed to write chunk delimiter: %w", err)
+	}
+	return chunkSizeN + payloadN + payloadCloseN, nil
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	n, err := w.writeBody([]byte("0\r\n\r\n"))
+	if err != nil {
+		return 0, fmt.Errorf("failed to close chunked body: %w", err)
 	}
 	w.writerState = doneWriterState
 	return n, nil

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -30,6 +34,8 @@ func main() {
 }
 
 const (
+	HTTP_BIN_PREFIX = "/httpbin/"
+
 	YOUR_PROBLEM_PAYLOAD = `
 	<html>
   		<head>
@@ -41,6 +47,7 @@ const (
   		</body>
 	</html>
 	`
+
 	MY_PROBLEM_PAYLOAD = `
 	<html>
 	  	<head>
@@ -52,6 +59,7 @@ const (
 	  	</body>
 	</html>
 	`
+
 	OK_PAYLOAD = `
 	<html>
 		<head>
@@ -66,8 +74,14 @@ const (
 )
 
 func handleRequest(w *response.Writer, req *request.Request) {
+	requestTarget := req.RequestLine.RequestTarget
+	if strings.HasPrefix(requestTarget, HTTP_BIN_PREFIX) {
+		proxyHandler(w, requestTarget)
+		return
+	}
+
 	var p string
-	switch req.RequestLine.RequestTarget {
+	switch requestTarget {
 	case "/yourproblem":
 		w.WriteStatusLine(response.BadRequest)
 		p = YOUR_PROBLEM_PAYLOAD
@@ -78,6 +92,7 @@ func handleRequest(w *response.Writer, req *request.Request) {
 		w.WriteStatusLine(response.Ok)
 		p = OK_PAYLOAD
 	}
+
 	h := headers.NewHeaders()
 	h.SetConnection("close")
 	h.SetContentType("text/html")
@@ -85,4 +100,39 @@ func handleRequest(w *response.Writer, req *request.Request) {
 	h.SetContentLength(len(p))
 	w.WriteHeaders(h)
 	w.WriteBody(p)
+}
+
+func proxyHandler(w *response.Writer, requestTarget string) {
+	resp, err := http.Get(fmt.Sprintf("https://httpbingo.org/%s", strings.TrimPrefix(requestTarget, HTTP_BIN_PREFIX)))
+	if err != nil {
+		fmt.Printf("an error has occurred while calling httpbingo: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.WriteStatusLine(response.Ok)
+
+	h := headers.NewHeaders()
+	h.SetConnection("close")
+	h.SetContentType("application/json")
+	h.SetHeader("Transfer-Encoding", "chunked")
+	w.WriteHeaders(h)
+
+	buffer := make([]byte, 1024)
+	for {
+		readBytes, err := resp.Body.Read(buffer)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				w.WriteChunkedBodyDone()
+				return
+			}
+			fmt.Printf("an error has occurred while reading response from httpbingo: %v\n", err)
+			return
+		}
+
+		if _, err = w.WriteChunkedBody(buffer[:readBytes]); err != nil {
+			fmt.Printf("an error has occurred while writing chunked response from httpbingo: %v\n", err)
+			return
+		}
+	}
 }
