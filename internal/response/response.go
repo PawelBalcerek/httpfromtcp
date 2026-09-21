@@ -92,19 +92,17 @@ func (w *Writer) writeBody(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
-	chunkSizeN, err := w.writeBody(fmt.Appendf(nil, "%x\r\n", len(p)))
-	if err != nil {
+	if _, err := w.writeBody(fmt.Appendf(nil, "%x\r\n", len(p))); err != nil {
 		return 0, fmt.Errorf("failed to write chunk size: %w", err)
 	}
-	payloadN, err := w.writeBody(p)
+	n, err := w.writeBody(p)
 	if err != nil {
 		return 0, fmt.Errorf("failed to write chunk: %w", err)
 	}
-	payloadCloseN, err := w.writeBody([]byte("\r\n"))
-	if err != nil {
+	if _, err := w.writeBody([]byte("\r\n")); err != nil {
 		return 0, fmt.Errorf("failed to write chunk delimiter: %w", err)
 	}
-	return chunkSizeN + payloadN + payloadCloseN, nil
+	return n, nil
 }
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
@@ -114,4 +112,21 @@ func (w *Writer) WriteChunkedBodyDone() (int, error) {
 	}
 	w.writerState = doneWriterState
 	return n, nil
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	if _, err := w.writeBody([]byte("0\r\n")); err != nil {
+		return fmt.Errorf("failed to close chunked body: %w", err)
+	}
+	for k, v := range h {
+		_, err := fmt.Fprintf(w.writer, "%s: %s\r\n", k, v)
+		if err != nil {
+			return fmt.Errorf("failed to write trailer: %w", err)
+		}
+	}
+	if _, err := w.writeBody([]byte("\r\n")); err != nil {
+		return fmt.Errorf("failed to close trailers: %w", err)
+	}
+	w.writerState = doneWriterState
+	return nil
 }

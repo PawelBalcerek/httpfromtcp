@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -116,22 +119,40 @@ func proxyHandler(w *response.Writer, requestTarget string) {
 	h.SetConnection("close")
 	h.SetContentType("application/json")
 	h.SetHeader("Transfer-Encoding", "chunked")
+	h.SetHeader("Trailer", "X-Content-SHA256")
+	h.SetHeader("Trailer", "X-Content-Length")
 	w.WriteHeaders(h)
 
 	buffer := make([]byte, 1024)
+	wroteBytes := 0
+	hasher := sha256.New()
 	for {
 		readBytes, err := resp.Body.Read(buffer)
+
+		if readBytes > 0 {
+			n, err := w.WriteChunkedBody(buffer[:readBytes])
+			if err != nil {
+				fmt.Printf("an error has occurred while writing chunked response from httpbingo to writer: %v\n", err)
+				return
+			}
+
+			if _, err = hasher.Write(buffer[:readBytes]); err != nil {
+				fmt.Printf("an error has occurred while writing chunked response from httpbingo to hasher: %v\n", err)
+				return
+			}
+
+			wroteBytes += n
+		}
+
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				w.WriteChunkedBodyDone()
+				t := headers.NewHeaders()
+				t.SetHeader("x-content-sha256", hex.EncodeToString(hasher.Sum(nil)))
+				t.SetHeader("x-content-length", strconv.Itoa(wroteBytes))
+				w.WriteTrailers(t)
 				return
 			}
 			fmt.Printf("an error has occurred while reading response from httpbingo: %v\n", err)
-			return
-		}
-
-		if _, err = w.WriteChunkedBody(buffer[:readBytes]); err != nil {
-			fmt.Printf("an error has occurred while writing chunked response from httpbingo: %v\n", err)
 			return
 		}
 	}
